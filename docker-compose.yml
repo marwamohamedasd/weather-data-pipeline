@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # خدمة قاعدة البيانات
+  db:
+    image: postgres:15
+    container_name: weather_db
+    restart: "no"
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: weather_data
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # خدمة البوت (كود البايثون)
+  weather_bot:
+    build: .
+    container_name: weather_bot_container
+    restart: "no"
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
