@@ -5,7 +5,9 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # تسطيب المكتبات الضرورية
-RUN pip install pandas sqlalchemy psycopg2-binary requests-cache openmeteo-requests retry-requests
+#RUN pip install pandas sqlalchemy psycopg2-binary requests-cache openmeteo-requests retry-requests
+
+RUN pip install pandas sqlalchemy psycopg2-binary requests-cache openmeteo-requests retry-requests python-dotenv
 
 # نسخ ملف الكود بتاعنا للصندوق
 # COPY main.py .
