@@ -1722,6 +1722,266 @@
 
 
 
+# import time
+# import os
+# import smtplib
+# from email.mime.text import MIMEText
+# from email.mime.multipart import MIMEMultipart
+# import pandas as pd
+# from sqlalchemy import create_engine, text
+# import openmeteo_requests
+# import requests_cache
+# from retry_requests import retry
+# from dotenv import load_dotenv
+
+# # --- 0. تحميل الإعدادات من ملف .env ---
+# load_dotenv(dotenv_path='/app/.env')
+
+# # --- 1. إعدادات Gmail ---
+# GMAIL_USER = 'marwamohameddasd91@gmail.com' 
+# GMAIL_APP_PASSWORD = 'kzpe odbm dciq fbww'  
+# RECIPIENT_EMAIL = 'marwamohameddasd91@gmail.com' 
+
+# # --- 2. وظيفة إرسال الإيميل ---
+# def send_email_alert(subject, body):
+#     try:
+#         msg = MIMEMultipart()
+#         msg['From'] = GMAIL_USER
+#         msg['To'] = RECIPIENT_EMAIL
+#         msg['Subject'] = subject
+#         msg.attach(MIMEText(body, 'plain'))
+
+#         server = smtplib.SMTP('smtp.gmail.com', 587)
+#         server.starttls()
+#         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+#         server.send_message(msg)
+#         server.quit()
+#         print("📧 تم إرسال إيميل التنبيه بنجاح!")
+#     except Exception as e:
+#         print(f"❌ فشل إرسال الإيميل: {e}")
+
+# # --- 3. محرك اتخاذ القرار (للداتا اليومية) ---
+# def apply_delivery_logic(row):
+#     delay = 0
+#     bonus = 0
+#     temp = row.get('max_temp', 25)
+#     precip = row.get('precip_sum', 0)
+#     wind = row.get('wind_max', 0)
+    
+#     if precip > 0:
+#         delay += 15
+#         bonus += 10
+#         if precip > 2:
+#             delay += 20
+#             bonus += 15
+#     if wind > 20:
+#         delay += 10
+#         bonus += 10
+#     if temp > 38:
+#         delay += 10
+#         bonus += 5
+#     return pd.Series([delay, bonus], index=['expected_delay_min', 'risk_bonus_egp'])
+
+# # --- 4. وظيفة التنبؤ والإنذار المبكر ---
+# def check_for_alerts(df):
+#     print("\n🔍 فحص المخاطر المتوقعة ليوم غد...")
+#     tomorrow = (pd.Timestamp.now().normalize() + pd.Timedelta(days=1)).date()
+#     # تحويل العمود لتاريخ للمقارنة الصحيحة
+#     df_copy = df.copy()
+#     df_copy['date_parsed'] = pd.to_datetime(df_copy['date']).dt.date
+#     tomorrow_df = df_copy[df_copy['date_parsed'] == tomorrow]
+
+#     alert_messages = []
+#     for _, row in tomorrow_df.iterrows():
+#         alerts = []
+#         if row['precip_sum'] > 5: alerts.append(f"🌧️ مطر غزير ({row['precip_sum']} ملم)")
+#         if row['wind_max'] > 35: alerts.append(f"💨 رياح قوية ({row['wind_max']} كم/س)")
+#         if row['max_temp'] > 40: alerts.append(f"🔥 موجة حر ({row['max_temp']}°)")
+
+#         if alerts:
+#             msg = f"محافظة {row['city']}: متوقع { ' و '.join(alerts) } | الميزانية المتوقعة: {row.get('total_bonus_budget', 0)} ج.م"
+#             alert_messages.append(msg)
+#             print(f"🚨 {msg}")
+
+#     if alert_messages:
+#         subject = f"⚠️ تقرير مخاطر الطقس الاستباقي - {tomorrow}"
+#         body = "السيد المدير،\n\nيرجى العلم بوجود مخاطر طقس متوقعة غداً قد تؤثر على العمليات:\n\n" + "\n".join(alert_messages)
+#         send_email_alert(subject, body)
+#     else:
+#         print("✅ حالة الطقس غداً مستقرة في جميع المحافظات.")
+
+# # --- 5. خط إنتاج البيانات (The Pipeline) ---
+# def run_weather_pipeline():
+#     try:
+#         cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
+#         retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+#         openmeteo = openmeteo_requests.Client(session=retry_session)
+
+#         cities = ["Cairo", "Alexandria", "Giza", "Qalyubia", "Dakahlia", "Gharbia", "Monufia", "Sharqia", "Beheira", "Kafr El Sheikh", "Damietta", "Port Said", "Ismailia", "Suez", "Faiyum", "Beni Suef", "Minya", "Asyut", "Sohag", "Qena", "Luxor", "Aswan", "Red Sea", "New Valley", "Matrouh", "North Sinai", "South Sinai", "New Capital"]
+        
+#         url = "https://api.open-meteo.com/v1/forecast"
+#         params = { 
+#             "latitude": [30.0626, 31.2018, 30.0094, 30.4598, 31.0423, 30.7885, 30.563, 30.5877, 31.0341, 31.1117, 31.4165, 31.2653, 30.6043, 29.9737, 29.3084, 29.2084, 28.0919, 27.181, 26.557, 26.1551, 25.6989, 24.0908, 27.2579, 25.439, 31.3543, 31.1316, 28.209, 30.0238], 
+#             "longitude": [31.2497, 29.9158, 31.2086, 31.1842, 31.3533, 31.0019, 31.0097, 31.502, 30.4682, 30.9399, 31.8133, 32.3019, 32.2722, 32.5263, 30.8428, 31.0166, 30.7581, 31.1837, 31.6948, 32.716, 32.6421, 32.8994, 33.8116, 30.5586, 27.2373, 33.7984, 33.6455, 31.7549], 
+#             "current": ["temperature_2m", "relative_humidity_2m", "rain", "wind_speed_10m"],
+#             "hourly": ["temperature_2m", "relative_humidity_2m", "precipitation"],
+#             "daily": ["temperature_2m_max", "precipitation_sum", "wind_speed_10m_max"], 
+#             "timezone": "Africa/Cairo"
+#         }
+
+#         print("📡 سحب بيانات الطقس (Current, Hourly, Daily)...")
+#         responses = openmeteo.weather_api(url, params=params)
+        
+#         all_current_dfs = []
+#         all_hourly_dfs = []
+#         all_daily_dfs = []
+        
+#         for i, response in enumerate(responses):
+#             # --- أ: تجهيز بيانات Current ---
+#             current = response.Current()
+#             all_current_dfs.append(pd.DataFrame({
+#                 "city": [cities[i]],
+#                 "time": [pd.to_datetime(current.Time(), unit="s", utc=True).strftime('%Y-%m-%d %H:%M:%S')],
+#                 "temp": [current.Variables(0).Value()],
+#                 "humidity": [current.Variables(1).Value()],
+#                 "rain": [current.Variables(2).Value()],
+#                 "wind_speed": [current.Variables(3).Value()]
+#             }))
+            
+#             # --- ب: تجهيز بيانات Hourly ---
+#             hourly = response.Hourly()
+#             hourly_time = pd.date_range(start=pd.to_datetime(hourly.Time(), unit="s", utc=True), end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True), freq=pd.Timedelta(seconds=hourly.Interval()), inclusive="left")
+#             all_hourly_dfs.append(pd.DataFrame({
+#                 "city": cities[i],
+#                 "time": hourly_time.strftime('%Y-%m-%d %H:%M:%S'),
+#                 "temp": hourly.Variables(0).ValuesAsNumpy(),
+#                 "humidity": hourly.Variables(1).ValuesAsNumpy(),
+#                 "precipitation": hourly.Variables(2).ValuesAsNumpy()
+#             }))
+
+#             # --- جـ: تجهيز بيانات Daily ---
+#             daily = response.Daily()
+#             daily_time = pd.date_range(start=pd.to_datetime(daily.Time(), unit="s", utc=True), end=pd.to_datetime(daily.TimeEnd(), unit="s", utc=True), freq=pd.Timedelta(seconds=daily.Interval()), inclusive="left")
+#             all_daily_dfs.append(pd.DataFrame({
+#                 "city": cities[i], 
+#                 "date": daily_time.strftime('%Y-%m-%d'),
+#                 "max_temp": daily.Variables(0).ValuesAsNumpy(),
+#                 "precip_sum": daily.Variables(1).ValuesAsNumpy(),
+#                 "wind_max": daily.Variables(2).ValuesAsNumpy()
+#             }))
+        
+#         # تحويل القوائم لـ DataFrames شاملة لكل المحافظات
+#         final_current = pd.concat(all_current_dfs)
+#         final_hourly = pd.concat(all_hourly_dfs)
+#         final_daily = pd.concat(all_daily_dfs)
+        
+#         # حساب منطق التوصيل والتأخير للجدول اليومي
+#         final_daily[['expected_delay_min', 'risk_bonus_egp']] = final_daily.apply(apply_delivery_logic, axis=1)
+
+#         # دمج ملف الطلبات وحساب ميزانية البونص الكلية
+#         if os.path.exists('orders_data.csv'):
+#             orders_df = pd.read_csv('orders_data.csv')
+#             final_daily = pd.merge(final_daily, orders_df, on='city', how='left')
+#             final_daily['total_bonus_budget'] = final_daily['risk_bonus_egp'] * final_daily['avg_daily_orders']
+#         else:
+#             final_daily['avg_daily_orders'] = 0
+#             final_daily['total_bonus_budget'] = 0
+
+#         # --- 🛠️ إدارة الداتابيز وجداول البيانات الـ 3 ---
+#         db_url = os.getenv('DATABASE_URL')
+#         engine = create_engine(db_url)
+        
+#         # مسح الجداول وقائياً لإعادة البناء بالهيكلية الجديدة الكاملة
+#         with engine.connect() as conn:
+#             print("💥 إعادة تهيئة الجداول لتحديث قاعدة البيانات بالكامل...")
+#             conn.execute(text("DROP TABLE IF EXISTS daily_weather CASCADE;"))
+#             conn.execute(text("DROP TABLE IF EXISTS hourly_weather CASCADE;"))
+#             conn.execute(text("DROP TABLE IF EXISTS current_weather CASCADE;"))
+#             conn.execute(text("DROP TABLE IF EXISTS cities_orders CASCADE;"))
+#             conn.commit()
+
+#         # 1. رفع جدول الطلبات الأساسي وتعيين الـ Primary Key
+#         print("📦 رفع جدول الطلبات الأساسي...")
+#         if 'orders_df' in locals():
+#             orders_df.to_sql('cities_orders', engine, if_exists='replace', index=False)
+#         with engine.connect() as conn:
+#             conn.execute(text("ALTER TABLE cities_orders ADD PRIMARY KEY (city);"))
+#             conn.commit()
+
+#         # 2. صب وجدولة البيانات الـ 3 في الداتابيز
+#         print("☁️ حفظ جدول الـ Daily (شامل العواميد المحسوبة)...")
+#         final_daily.to_sql('daily_weather', engine, if_exists='append', index=False)
+
+#         print("⏳ حفظ جدول الـ Hourly التفصيلي...")
+#         final_hourly.to_sql('hourly_weather', engine, if_exists='append', index=False)
+
+#         print("⚡ حفظ جدول الـ Current اللحظي...")
+#         final_current.to_sql('current_weather', engine, if_exists='append', index=False)
+
+#         # 3. بناء العلاقات والـ Foreign Keys لكل الجداول لربطها بجدول المحافظات والطلبات
+#         with engine.connect() as conn:
+#             print("🔐 ربط العلاقات والـ Foreign Keys للجداول الثلاثة...")
+#             conn.execute(text("ALTER TABLE daily_weather ADD CONSTRAINT fk_daily_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
+#             conn.execute(text("ALTER TABLE hourly_weather ADD CONSTRAINT fk_hourly_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
+#             conn.execute(text("ALTER TABLE current_weather ADD CONSTRAINT fk_current_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
+#             conn.commit()
+        
+#         # تشغيل الإنذار وإرسال الإيميل الاستباقي
+#         check_for_alerts(final_daily)
+#         print(f"\n مبروك  الـ 3 جداول بقوا لايف وجاهزين: {pd.Timestamp.now()}")
+
+#     except Exception as e:
+#         print(f"❌ مشكلة: {e}")
+
+# if __name__ == "__main__":
+#     run_weather_pipeline()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import time
 import os
 import smtplib
@@ -1887,29 +2147,23 @@ def run_weather_pipeline():
             final_daily['avg_daily_orders'] = 0
             final_daily['total_bonus_budget'] = 0
 
-        # --- 🛠️ إدارة الداتابيز وجداول البيانات الـ 3 ---
+        # --- 🛠️ إدارة الداتابيز وجداول البيانات الـ 3 (نسخة الحفاظ على التاريخ) ---
         db_url = os.getenv('DATABASE_URL')
         engine = create_engine(db_url)
         
-        # مسح الجداول وقائياً لإعادة البناء بالهيكلية الجديدة الكاملة
-        with engine.connect() as conn:
-            print("💥 إعادة تهيئة الجداول لتحديث قاعدة البيانات بالكامل...")
-            conn.execute(text("DROP TABLE IF EXISTS daily_weather CASCADE;"))
-            conn.execute(text("DROP TABLE IF EXISTS hourly_weather CASCADE;"))
-            conn.execute(text("DROP TABLE IF EXISTS current_weather CASCADE;"))
-            conn.execute(text("DROP TABLE IF EXISTS cities_orders CASCADE;"))
-            conn.commit()
-
-        # 1. رفع جدول الطلبات الأساسي وتعيين الـ Primary Key
+        # 1. رفع جدول الطلبات الأساسي (إذا لم يكن موجوداً)
         print("📦 رفع جدول الطلبات الأساسي...")
         if 'orders_df' in locals():
-            orders_df.to_sql('cities_orders', engine, if_exists='replace', index=False)
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE cities_orders ADD PRIMARY KEY (city);"))
-            conn.commit()
+            try:
+                orders_df.to_sql('cities_orders', engine, if_exists='fail', index=False)
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE cities_orders ADD PRIMARY KEY (city);"))
+                    conn.commit()
+            except ValueError:
+                print("ℹ️ جدول cities_orders موجود بالفعل، جاري تخطي إعادة إنشائه لحماية العلاقات والبيانات.")
 
-        # 2. صب وجدولة البيانات الـ 3 في الداتابيز
-        print("☁️ حفظ جدول الـ Daily (شامل العواميد المحسوبة)...")
+        # 2. صب وجدولة البيانات الـ 3 في الداتابيز (Append حقيقي تراكمي)
+        print("☁️ حفظ جدول الـ Daily (إضافة فوق البيانات القديمة)...")
         final_daily.to_sql('daily_weather', engine, if_exists='append', index=False)
 
         print("⏳ حفظ جدول الـ Hourly التفصيلي...")
@@ -1918,17 +2172,21 @@ def run_weather_pipeline():
         print("⚡ حفظ جدول الـ Current اللحظي...")
         final_current.to_sql('current_weather', engine, if_exists='append', index=False)
 
-        # 3. بناء العلاقات والـ Foreign Keys لكل الجداول لربطها بجدول المحافظات والطلبات
+        # 3. بناء العلاقات والـ Foreign Keys (بأمان دون تكرار)
         with engine.connect() as conn:
-            print("🔐 ربط العلاقات والـ Foreign Keys للجداول الثلاثة...")
-            conn.execute(text("ALTER TABLE daily_weather ADD CONSTRAINT fk_daily_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
-            conn.execute(text("ALTER TABLE hourly_weather ADD CONSTRAINT fk_hourly_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
-            conn.execute(text("ALTER TABLE current_weather ADD CONSTRAINT fk_current_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
-            conn.commit()
+            print("🔐 فحص وربط العلاقات والـ Foreign Keys...")
+            try:
+                conn.execute(text("ALTER TABLE daily_weather ADD CONSTRAINT fk_daily_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
+                conn.execute(text("ALTER TABLE hourly_weather ADD CONSTRAINT fk_hourly_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
+                conn.execute(text("ALTER TABLE current_weather ADD CONSTRAINT fk_current_city FOREIGN KEY (city) REFERENCES cities_orders(city);"))
+                conn.commit()
+                print("✅ تم ربط العلاقات بنجاح لأول مرة.")
+            except Exception:
+                print("ℹ️ العلاقات والـ Foreign Keys مفعلة مسبقاً، جاري المتابعة بأمان وحفظ البيانات بنجاح.")
         
         # تشغيل الإنذار وإرسال الإيميل الاستباقي
         check_for_alerts(final_daily)
-        print(f"\n🎉 مبروك يا مروة! الـ 3 جداول بقوا لايف وجاهزين: {pd.Timestamp.now()}")
+        print(f"\n🎉 مبروك الـ 3 جداول بقوا لايف وجاهزين وتم تحديثهم بشكل تراكمي: {pd.Timestamp.now()}")
 
     except Exception as e:
         print(f"❌ مشكلة: {e}")
